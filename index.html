@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>NHN 채용 UTM 링크 생성기</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', '맑은 고딕', sans-serif; background: #f5f5f5; padding: 40px 20px; }
+  .container { max-width: 900px; margin: 0 auto; background: #fff; border-radius: 12px; padding: 40px; box-shadow: 0 2px 12px rgba(0,0,0,0.08); }
+  h1 { font-size: 24px; margin-bottom: 8px; color: #1a1a1a; }
+  .subtitle { color: #666; margin-bottom: 32px; font-size: 14px; }
+  .input-group { margin-bottom: 20px; }
+  label { display: block; font-weight: 600; margin-bottom: 6px; font-size: 14px; color: #333; }
+  .hint { font-size: 12px; color: #888; margin-bottom: 6px; }
+  input[type="text"] { width: 100%; padding: 12px 16px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; }
+  input[type="text"]:focus { outline: none; border-color: #4285f4; box-shadow: 0 0 0 3px rgba(66,133,244,0.1); }
+  button { background: #4285f4; color: #fff; border: none; padding: 12px 32px; border-radius: 8px; font-size: 15px; cursor: pointer; font-weight: 600; }
+  button:hover { background: #3367d6; }
+  .results { margin-top: 32px; display: none; }
+  .results h2 { font-size: 18px; margin-bottom: 16px; color: #1a1a1a; }
+  table { width: 100%; border-collapse: collapse; }
+  th { background: #f8f9fa; text-align: left; padding: 12px 16px; font-size: 13px; color: #555; border-bottom: 2px solid #e0e0e0; }
+  td { padding: 12px 16px; border-bottom: 1px solid #eee; font-size: 13px; vertical-align: middle; }
+  td:first-child { font-weight: 600; white-space: nowrap; width: 100px; }
+  .url-cell { word-break: break-all; color: #1a73e8; font-family: 'Consolas', monospace; font-size: 12px; }
+  .copy-btn { background: #fff; color: #4285f4; border: 1px solid #4285f4; padding: 6px 16px; border-radius: 6px; cursor: pointer; font-size: 12px; white-space: nowrap; }
+  .copy-btn:hover { background: #4285f4; color: #fff; }
+  .copy-btn.copied { background: #34a853; color: #fff; border-color: #34a853; }
+  .copy-all { margin-top: 16px; background: #34a853; }
+  .copy-all:hover { background: #2d8e47; }
+  .banner-section { margin-top: 24px; padding-top: 24px; border-top: 2px dashed #e0e0e0; display: none; }
+  .banner-section h3 { font-size: 15px; margin-bottom: 12px; color: #333; }
+  .toggle-banner { background: #ff9800; margin-top: 12px; }
+  .toggle-banner:hover { background: #f57c00; }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>NHN 채용 UTM 링크 생성기</h1>
+  <p class="subtitle">채용공고 URL과 캠페인명을 입력하면 플랫폼별 UTM 링크가 자동 생성됩니다.</p>
+
+  <div class="input-group">
+    <label>채용공고 URL</label>
+    <div class="hint">예: https://careers.nhn.com/recruits/4127829689944859135</div>
+    <input type="text" id="jobUrl" placeholder="https://careers.nhn.com/recruits/..." />
+  </div>
+
+  <div class="input-group">
+    <label>캠페인명 (utm_campaign)</label>
+    <div class="hint">예: 2026_spring_backend_engineer</div>
+    <input type="text" id="campaign" placeholder="2026_spring_backend_engineer" />
+  </div>
+
+  <button onclick="generate()">UTM 링크 생성</button>
+  <button class="toggle-banner" onclick="toggleBanner()">+ 배너 광고용 추가</button>
+
+  <div class="banner-section" id="bannerSection">
+    <h3>배너 광고용 설정</h3>
+    <div class="input-group">
+      <label>배너 출처 (utm_source)</label>
+      <div class="hint">예: naver, google, facebook</div>
+      <input type="text" id="bannerSource" placeholder="naver" />
+    </div>
+    <div class="input-group">
+      <label>배너 캠페인명 (utm_campaign)</label>
+      <div class="hint">비워두면 위 캠페인명과 동일하게 적용</div>
+      <input type="text" id="bannerCampaign" placeholder="" />
+    </div>
+  </div>
+
+  <div class="results" id="results">
+    <h2>생성된 UTM 링크</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>플랫폼</th>
+          <th>UTM 링크</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody id="resultBody"></tbody>
+    </table>
+    <button class="copy-all" onclick="copyAll()">전체 복사 (표 형태)</button>
+  </div>
+</div>
+
+<script>
+const platforms = [
+  { name: '사람인', source: 'saramin', medium: 'posting' },
+  { name: '리멤버', source: 'remember', medium: 'posting' },
+  { name: '게임잡', source: 'gamejob', medium: 'posting' },
+  { name: '링크드인', source: 'linkedin', medium: 'posting' },
+  { name: '자소설', source: 'jasoseol', medium: 'posting' },
+];
+
+let generatedLinks = [];
+
+function generate() {
+  const url = document.getElementById('jobUrl').value.trim();
+  const campaign = document.getElementById('campaign').value.trim();
+
+  if (!url) { alert('채용공고 URL을 입력해주세요.'); return; }
+  if (!campaign) { alert('캠페인명을 입력해주세요.'); return; }
+
+  const baseUrl = url.split('?')[0];
+  generatedLinks = [];
+
+  const tbody = document.getElementById('resultBody');
+  tbody.innerHTML = '';
+
+  platforms.forEach(p => {
+    const utmUrl = `${baseUrl}?utm_source=${p.source}&utm_medium=${p.medium}&utm_campaign=${encodeURIComponent(campaign)}`;
+    generatedLinks.push({ name: p.name, url: utmUrl });
+
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${p.name}</td>
+      <td class="url-cell">${utmUrl}</td>
+      <td><button class="copy-btn" onclick="copyOne(this, '${utmUrl}')">복사</button></td>
+    `;
+    tbody.appendChild(tr);
+  });
+
+  // 배너 광고용
+  const bannerSection = document.getElementById('bannerSection');
+  if (bannerSection.style.display === 'block') {
+    const bannerSource = document.getElementById('bannerSource').value.trim();
+    const bannerCampaign = document.getElementById('bannerCampaign').value.trim() || campaign;
+    if (bannerSource) {
+      const bannerUrl = `${baseUrl}?utm_source=${encodeURIComponent(bannerSource)}&utm_medium=display&utm_campaign=${encodeURIComponent(bannerCampaign)}`;
+      generatedLinks.push({ name: `배너(${bannerSource})`, url: bannerUrl });
+
+      const tr = document.createElement('tr');
+      tr.style.background = '#fff8e1';
+      tr.innerHTML = `
+        <td>배너(${bannerSource})</td>
+        <td class="url-cell">${bannerUrl}</td>
+        <td><button class="copy-btn" onclick="copyOne(this, '${bannerUrl}')">복사</button></td>
+      `;
+      tbody.appendChild(tr);
+    }
+  }
+
+  document.getElementById('results').style.display = 'block';
+}
+
+function copyOne(btn, url) {
+  navigator.clipboard.writeText(url);
+  btn.textContent = '완료';
+  btn.classList.add('copied');
+  setTimeout(() => { btn.textContent = '복사'; btn.classList.remove('copied'); }, 1500);
+}
+
+function copyAll() {
+  const text = generatedLinks.map(l => `${l.name}\t${l.url}`).join('\n');
+  navigator.clipboard.writeText(text);
+  alert('전체 링크가 복사되었습니다. 엑셀/시트에 붙여넣기 하세요.');
+}
+
+function toggleBanner() {
+  const section = document.getElementById('bannerSection');
+  section.style.display = section.style.display === 'block' ? 'none' : 'block';
+}
+</script>
+</body>
+</html>
